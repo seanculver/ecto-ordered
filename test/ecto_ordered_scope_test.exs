@@ -8,6 +8,7 @@ defmodule EctoOrderedTest.Scoped do
     import Ecto.Changeset
     import EctoOrdered
 
+    @schema_prefix "custom_prefix"
     schema "scoped_model" do
       field(:title, :string)
       field(:scope, :integer)
@@ -19,18 +20,22 @@ defmodule EctoOrderedTest.Scoped do
     def changeset(model, params) do
       model
       |> cast(params, [:scope, :scoped_position, :title])
-      |> set_order(:scoped_position, :scoped_rank, :scope)
+      |> set_order(:scoped_position, :scoped_rank, :scope, :custom_prefix)
     end
 
     def changeset_multiscope(model, params) do
       model
       |> cast(params, [:scope, :scoped_position, :title])
-      |> set_order(:scoped_position, :scoped_rank, [:scope, :scope2])
+      |> set_order(:scoped_position, :scoped_rank, [:scope, :scope2], :custom_prefix)
     end
   end
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(EctoOrderedTest.Repo)
+
+    PrefixHelper.create_schema(Repo)
+    PrefixHelper.migrate(Repo)
+
     :ok
   end
 

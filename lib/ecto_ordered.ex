@@ -36,6 +36,7 @@ defmodule EctoOrdered do
               move_field: :move,
               rank_field: :rank,
               scope_field: nil,
+              prefix: nil,
               module: nil
   end
 
@@ -52,25 +53,26 @@ defmodule EctoOrdered do
   - `rank_field` the field in which the ranking should be stored
   - `scope` the field in which the scope for the order should be stored (optional)
   """
-  def set_order(changeset, position_field \\ :position, rank_field \\ :rank, scope_field \\ nil) do
+  def set_order(changeset, position_field \\ :position, rank_field \\ :rank, scope_field \\ nil, prefix \\ nil) do
     changeset
     |> prepare_changes(fn changeset ->
          case changeset.action do
            :insert ->
-             EctoOrdered.before_insert(changeset, position_field, rank_field, scope_field)
+             EctoOrdered.before_insert(changeset, position_field, rank_field, scope_field, prefix)
 
            :update ->
-             EctoOrdered.before_update(changeset, position_field, rank_field, scope_field)
+             EctoOrdered.before_update(changeset, position_field, rank_field, scope_field, prefix)
          end
        end)
   end
 
   @doc false
-  def before_insert(cs, position_field, rank_field, scope_field) do
+  def before_insert(cs, position_field, rank_field, scope_field, prefix) do
     options = %Options{
       position_field: position_field,
       rank_field: rank_field,
       scope_field: scope_field,
+      prefix: prefix,
       module: cs.data.__struct__
     }
 
@@ -85,11 +87,12 @@ defmodule EctoOrdered do
   end
 
   @doc false
-  def before_update(cs, position_field, rank_field, scope_field \\ nil) do
+  def before_update(cs, position_field, rank_field, scope_field \\ nil, prefix) do
     options = %Options{
       position_field: position_field,
       rank_field: rank_field,
       scope_field: scope_field,
+      prefix: prefix,
       module: cs.data.__struct__
     }
 
@@ -155,7 +158,7 @@ defmodule EctoOrdered do
       options
       |> nearby_query(cs)
       |> where([r], field(r, ^options.rank_field) < ^current_rank)
-      |> cs.repo.all
+      |> cs.repo.all(prefix: options.prefix)
 
     case previous do
       [] -> nil
@@ -171,7 +174,7 @@ defmodule EctoOrdered do
       options
       |> nearby_query(cs)
       |> where([r], field(r, ^options.rank_field) > ^current_rank)
-      |> cs.repo.all
+      |> cs.repo.all(prefix: options.prefix)
 
     case next do
       [] -> nil
@@ -265,7 +268,7 @@ defmodule EctoOrdered do
     options
     |> rank_query
     |> scope_query(options, cs)
-    |> cs.repo.all
+    |> cs.repo.all(prefix: options.prefix)
   end
 
   defp increment_other_ranks(%Options{rank_field: rank_field} = options, %{data: existing} = cs) do
@@ -274,7 +277,7 @@ defmodule EctoOrdered do
     options.module
     |> where([r], field(r, ^rank_field) >= ^current_rank)
     |> exclude_existing(existing)
-    |> cs.repo.update_all(inc: [{rank_field, 1}])
+    |> cs.repo.update_all([inc: [{rank_field, 1}]], prefix: options.prefix)
 
     cs
   end
@@ -285,7 +288,7 @@ defmodule EctoOrdered do
     options.module
     |> where([r], field(r, ^rank_field) <= ^current_rank)
     |> exclude_existing(existing)
-    |> cs.repo.update_all(inc: [{rank_field, -1}])
+    |> cs.repo.update_all([inc: [{rank_field, -1}]], prefix: options.prefix)
 
     cs
   end
@@ -297,7 +300,7 @@ defmodule EctoOrdered do
     |> where([r], field(r, ^rank_field) == ^rank)
     |> limit(1)
     |> scope_query(options, cs)
-    |> cs.repo.one
+    |> cs.repo.one(prefix: options.prefix)
   end
 
   defp neighbours_at_position(
@@ -314,7 +317,7 @@ defmodule EctoOrdered do
       |> select_rank(rank_field)
       |> limit(1)
       |> scope_query(options, cs)
-      |> cs.repo.one
+      |> cs.repo.one(prefix: options.prefix)
 
     if first do
       {@min, first}
@@ -338,7 +341,7 @@ defmodule EctoOrdered do
       |> offset(^(position - 1))
       |> scope_query(options, cs)
       |> exclude_existing(existing)
-      |> cs.repo.all
+      |> cs.repo.all(prefix: options.prefix)
 
     case neighbours do
       [] -> {current_last, @max}
@@ -375,7 +378,7 @@ defmodule EctoOrdered do
       |> order_by(desc: ^rank_field)
       |> limit(1)
       |> scope_query(options, cs)
-      |> cs.repo.one
+      |> cs.repo.one(prefix: options.prefix)
 
     if last do
       last
@@ -392,7 +395,7 @@ defmodule EctoOrdered do
       |> order_by(asc: ^rank_field)
       |> limit(1)
       |> scope_query(options, cs)
-      |> cs.repo.one
+      |> cs.repo.one(prefix: options.prefix)
 
     if first do
       first
